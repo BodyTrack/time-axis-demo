@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+   <meta charset="UTF-8">
+   <title>Time Axis Demo</title>
+   <style type="text/css">
+
+      body {
+         /* The GWT stylesheet tries to stomp on our styles, so fight back by using !important here. */
+         margin: 10px !important;
+         font-weight: normal !important;
+         font-family: Helvetica, Arial, sans-serif !important;
+         font-size: 10pt !important;
+      }
+
+      .title {
+         font-size: 21pt;
+         text-align: center;
+         font-weight: bold;
+         margin-bottom: 20px;
+      }
+
+      #time_axis {
+         position: relative;
+         margin-left: 50px;
+         margin-right: 50px;
+         border: 1px solid black;
+         height: 60px;
+      }
+
+      .table {
+         display: table;
+         border: 1px solid #cccccc;
+         padding: 5px;
+      }
+
+      .row {
+         display: table-row;
+      }
+
+      .cell {
+         display: table-cell;
+      }
+
+      .row_label {
+         font-weight: bold;
+         text-align: right;
+         border-right: 1px solid #cccccc;
+         padding-right: 5px;
+      }
+
+      .col_label {
+         font-weight: bold !important;
+         text-align: center;
+         border-bottom: 1px solid #cccccc;
+         padding: 5px;
+      }
+
+      .value {
+         padding-left: 15px;
+         padding-right: 15px;
+         font-family: Monoco, Courier, monospace;
+      }
+
+      .control_panel {
+         margin-left: 20px;
+      }
+   </style>
+   <script type="text/javascript" language="JavaScript" src="lib/jquery/jquery-1.11.1.min.js"></script>
+   <script type="text/javascript" language="JavaScript" src="lib/org/bodytrack/grapher/gwt/grapher2.nocache.js"></script>
+   <script type="text/javascript" language="JavaScript">
+      var timeAxis = null;
+
+      // this gets called once the GWT grapher is loaded and ready to go
+      window.grapherLoad = function() {
+         var isMinTimeLocked = false;
+         var isMaxTimeLocked = false;
+         var fixedMinTime = null;
+         var fixedMaxTime = null;
+
+         // define default time range (defaults to max time of now, and a min time exactly 1 day before now)
+         var now = new Date();
+         var yesterday = new Date();
+         yesterday.setDate(now.getDate() - 1);
+         var defaultTimeRange = {
+            min : yesterday.getTime() / 1000,
+            max : now.getTime() / 1000
+         };
+
+         // create the time axis
+         timeAxis = new DateAxis("time_axis", "horizontal", defaultTimeRange);
+
+         // register a change listener so we can report current state as the user pans and zooms the axis.
+         // NOTE: if you ever need to remove a change listener, use .removeAxisChangeListener()
+         timeAxis.addAxisChangeListener(function(axisChangeEvent) {
+
+            // display current state in the UI
+            $("#min_secs").text(axisChangeEvent['min'].toFixed(6));
+            $("#max_secs").text(axisChangeEvent['max'].toFixed(6));
+            $("#cursor_secs").text(axisChangeEvent['cursorPosition'] == null ? "n/a" : axisChangeEvent['cursorPosition'].toFixed(6));
+            $("#min_formatted").text(new Date(axisChangeEvent['min'] * 1000));
+            $("#max_formatted").text(new Date(axisChangeEvent['max'] * 1000));
+            $("#cursor_formatted").text(axisChangeEvent['cursorPosition'] == null ? "n/a" : new Date(axisChangeEvent['cursorPosition'] * 1000));
+
+            // see if we need to clamp the range
+            var rangeNeedsFixing = false;
+            var newRange = {min : axisChangeEvent['min'], max : axisChangeEvent['max']};
+            if (isMinTimeLocked && axisChangeEvent['min'] < fixedMinTime) {
+               rangeNeedsFixing = true;
+               newRange['min'] = fixedMinTime;
+            }
+            if (isMaxTimeLocked && axisChangeEvent['max'] > fixedMaxTime) {
+               rangeNeedsFixing = true;
+               newRange['max'] = fixedMaxTime;
+            }
+            if (rangeNeedsFixing) {
+               timeAxis.setRange(newRange['min'], newRange['max']);
+            }
+         });
+
+         // configure the various control widgets
+         $("#is_cursor_enabled").change(function() {
+            if ($(this).prop('checked')) {
+               timeAxis.setCursorPosition((timeAxis.getMax() - timeAxis.getMin()) / 2 + timeAxis.getMin());
+            }
+            else {
+               timeAxis.setCursorPosition(null);
+            }
+         });
+         $("#is_min_locked").change(function() {
+            isMinTimeLocked = $(this).prop('checked');
+            fixedMinTime = timeAxis.getMin();
+         });
+         $("#is_max_locked").change(function() {
+            isMaxTimeLocked = $(this).prop('checked');
+            fixedMaxTime = timeAxis.getMax();
+         });
+         $("#reset_time_range").click(function() {
+            timeAxis.setRange(defaultTimeRange['min'], defaultTimeRange['max']);
+            fixedMinTime = defaultTimeRange['min'];
+            fixedMaxTime = defaultTimeRange['max'];
+         });
+
+         // the purpose of this is simply to illustrate the use of the various
+         // getter methods rather than only relying on the change listener
+         $("#report_current_state").click(function() {
+            alert("Min: " + timeAxis.getMin() + "\n" +
+                  "Max: " + timeAxis.getMax() + "\n" +
+                  "Cursor: " + timeAxis.getCursorPosition() + "\n" +
+                  "Scale: " + timeAxis.getScale());
+         });
+
+         // update the sizes--you must do this!
+         updateSize();
+
+         // set up window resize handler so that the time axis
+         // can update its internals when its size changes
+         $(window).resize(updateSize);
+      };
+
+      function updateSize() {
+         var timeAxisElement = $("#time_axis");
+         timeAxis.setSize(timeAxisElement.width(), timeAxisElement.height(), SequenceNumber.getNext());
+      }
+
+   </script>
+</head>
+<body>
+<div class="title">BodyTrack Grapher Time Axis Demo</div>
+<div id="time_axis"></div>
+<div class="table" style="margin: 20px auto 0 auto; border: none">
+   <div class="row">
+      <div class="cell">
+         <div class="table" style="margin: 20px auto 0 auto">
+            <div class="row">
+               <div class="cell col_label">&nbsp;</div>
+               <div class="cell col_label">Secs</div>
+               <div class="cell col_label">Time</div>
+            </div>
+            <div class="row">
+               <div class="cell row_label">Min:</div>
+               <div class="cell value" id="min_secs">0</div>
+               <div class="cell value" id="min_formatted">0</div>
+            </div>
+            <div class="row">
+               <div class="cell row_label">Max:</div>
+               <div class="cell value" id="max_secs">0</div>
+               <div class="cell value" id="max_formatted">0</div>
+            </div>
+            <div class="row">
+               <div class="cell row_label">Cursor:</div>
+               <div class="cell value" id="cursor_secs">0</div>
+               <div class="cell value" id="cursor_formatted">0</div>
+            </div>
+         </div>
+      </div>
+      <div class="cell">
+         <div class="control_panel">
+            <div>
+               <input type="checkbox" id="is_cursor_enabled" name="is_cursor_enabled" value="true"><label for="is_cursor_enabled">Show cursor</label>
+            </div>
+            <div>
+               <input type="checkbox" id="is_min_locked" name="is_min_locked" value="true"><label for="is_min_locked">Lock min time</label>
+            </div>
+            <div>
+               <input type="checkbox" id="is_max_locked" name="is_max_locked" value="true"><label for="is_max_locked">Lock max time</label>
+            </div>
+         </div>
+      </div>
+      <div class="cell">
+         <div class="control_panel">
+            <div>
+               <button id="reset_time_range">Reset Time Range</button>
+            </div>
+            <div>
+               <button id="report_current_state">Report Current State</button>
+            </div>
+         </div>
+      </div>
+   </div>
+</div>
+
+</body>
+</html>
